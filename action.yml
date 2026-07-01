@@ -1,0 +1,90 @@
+name: PaaS Deploy
+description: Deploy a prebuilt image to PaaS (build/push it yourself first).
+# Standalone action for github.com/JangHanbin/paas-deploy-action.
+# paas-deploy.sh is copied next to this file at publish time from the canonical
+# source deploy/paas-deploy.sh (see README / publish.sh). GitHub resolves
+# `uses:` only from GitHub repos, so this is the GitHub-published mirror.
+inputs:
+  app:
+    description: App name (must already exist on PaaS).
+    required: true
+  token:
+    description: App deploy token (PaaS API auth).
+    required: true
+  action:
+    description: 'Lifecycle action: deploy (default), teardown (un-deploy, keep data), delete (remove everything incl. volumes), or rollback (re-deploy a past release; needs release-id).'
+    default: deploy
+  release-id:
+    description: 'Release id to roll back to (required when action: rollback).'
+    default: ""
+  images:
+    description: 'Optional JSON object {"web":"img@sha256:..."} or "web=img@sha256:..." shorthand. If omitted, digest images are inferred from deploy-yaml.'
+    default: ""
+  url:
+    description: PaaS base URL.
+    default: https://paas.free4me.cc
+  deploy-yaml:
+    description: Path to deploy YAML / compose YAML (sent as the run shape if present).
+    default: docker-compose.yml
+  http-service:
+    description: Service to expose over HTTP.
+    default: ""
+  http-port:
+    description: Container port of the HTTP service.
+    default: ""
+  health-path:
+    description: Health check path (default /health).
+    default: ""
+  custom-domains:
+    description: 'Comma-separated custom domains to serve this app on (e.g. "api.example.com,www.example.com"). Each must CNAME to the app; a Cloudflare edge certificate is provisioned (HTTP-validated) asynchronously.'
+    default: ""
+  env:
+    description: 'JSON object of vars/secrets for ${VAR} interpolation in the compose, e.g. {"DB_PASSWORD":"...","JWT_SECRET":"..."}. The agent injects them into docker compose like a local .env, so you can deploy a committed compose as-is instead of generating one. Encrypted at rest (control plane needs PAAS_SECRET_KEY).'
+    default: ""
+  deploy-timeout:
+    description: 'Health/deploy timeout for slow startups like DB init, e.g. "180s" (agent default 90s).'
+    default: ""
+  registry-host:
+    description: Pull credential host for private app images.
+    default: ""
+  registry-username:
+    description: Pull credential username for private app images.
+    default: ""
+  registry-password:
+    description: Pull credential password/token for private app images.
+    default: ""
+  registry-credentials:
+    description: 'JSON array of pull credentials for MULTIPLE registries, e.g. [{"host":"ghcr.io","username":"u","password":"t"},{"host":"registry.gitlab.com","username":"...","password":"..."}]. Combined with registry-username/password. One token per host.'
+    default: ""
+  poll:
+    description: Wait for the deployment to finish.
+    default: "true"
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        PAAS_APP: ${{ inputs.app }}
+        PAAS_DEPLOY_TOKEN: ${{ inputs.token }}
+        PAAS_ACTION: ${{ inputs.action }}
+        PAAS_RELEASE_ID: ${{ inputs.release-id }}
+        PAAS_IMAGES: ${{ inputs.images }}
+        PAAS_URL: ${{ inputs.url }}
+        PAAS_DEPLOY_YAML: ${{ inputs.deploy-yaml }}
+        PAAS_HTTP_SERVICE: ${{ inputs.http-service }}
+        PAAS_HTTP_PORT: ${{ inputs.http-port }}
+        PAAS_HEALTH_PATH: ${{ inputs.health-path }}
+        PAAS_CUSTOM_DOMAINS: ${{ inputs.custom-domains }}
+        PAAS_ENV_JSON: ${{ inputs.env }}
+        PAAS_DEPLOY_TIMEOUT: ${{ inputs.deploy-timeout }}
+        PAAS_REGISTRY_HOST: ${{ inputs.registry-host }}
+        PAAS_REGISTRY_USERNAME: ${{ inputs.registry-username }}
+        PAAS_REGISTRY_PASSWORD: ${{ inputs.registry-password }}
+        PAAS_REGISTRY_CREDENTIALS: ${{ inputs.registry-credentials }}
+        PAAS_POLL: ${{ inputs.poll }}
+        PAAS_PROVIDER: github
+        PAAS_REPOSITORY: ${{ github.repository }}
+        PAAS_COMMIT_SHA: ${{ github.sha }}
+      # paas-deploy.sh sits next to this action.yml in the published repo.
+      # curl and jq are preinstalled on GitHub-hosted runners.
+      run: bash "$GITHUB_ACTION_PATH/paas-deploy.sh"
